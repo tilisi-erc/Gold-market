@@ -1,8 +1,7 @@
-import os, requests
+import os
 from flask import Flask, render_template_string, jsonify
 from datetime import datetime
-import random
-from engine import v7_check_gates, get_gold_price
+from engine import v7_check_gates
 
 app = Flask(__name__)
 
@@ -10,7 +9,7 @@ HTML = """
 <!DOCTYPE html>
 <html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QuantTrade Terminal | Tilisi BI v7</title>
+<title>QuantTrade Terminal | Tilisi BI v7.1</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -44,12 +43,16 @@ body{background:#0a0e14;color:#e6e6e6;font-family:'Inter',sans-serif}
 .footer{display:flex;justify-content:space-between;padding:10px 20px;font-size:11px;color:#6b7a90;background:#0a0e14;border-top:1px solid #1f2a38;flex-wrap:wrap}
 @media(max-width:1100px){.main{grid-template-columns:1fr} .sidebar,.right{border:none}}
 #notif{position:fixed;top:70px;right:16px;background:#0a3d2a;border:1px solid #00e676;color:#00e676;padding:14px 18px;border-radius:8px;display:none;z-index:99;box-shadow:0 10px 30px rgba(0,230,118,0.3)}
+.btn-enable{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#FFD700;color:#000;padding:14px 22px;border-radius:30px;font-weight:800;z-index:100;border:none;box-shadow:0 5px 20px rgba(255,215,0,0.4)}
+.btn-mt5{display:none;width:100%;background:#2196F3;color:#fff;padding:14px;text-align:center;border-radius:8px;font-weight:800;text-decoration:none;margin-top:12px}
 </style>
 </head><body>
 <div id="notif" class="mono"><b>🔔 MARKET ALERT</b><br><span id="notif-text"></span></div>
+<button id="enableBtn" class="btn-enable mono" onclick="enableSound()">🔊 TAP TO ENABLE SOUND + MT5 ALERT</button>
+
 <div class="topbar">
-<div class="brand mono">QUANTRADE TERMINAL <span style="font-weight:400;color:#6b7a90">/ XAUUSD / TILISI BI v7</span></div>
-<div class="mono live">● LIVE • UTC <span id="utc"></span> | <span id="gates-count">Gates 0/8</span> | RESEARCH MODE</div>
+<div class="brand mono">QUANTRADE TERMINAL <span style="font-weight:400;color:#6b7a90">/ XAUUSD / TILISI BI v7.1</span></div>
+<div class="mono live">● LIVE • UTC <span id="utc"></span> | <span id="gates-count">Gates 0/8</span> | MOBILE SOUND READY</div>
 </div>
 <div class="main">
 <div class="sidebar mono">
@@ -60,11 +63,8 @@ body{background:#0a0e14;color:#e6e6e6;font-family:'Inter',sans-serif}
 <h4>ANALYTICS</h4>
 <div class="item active">Technical Analysis</div>
 <div class="item">Evidence Matrix</div>
-<div class="item">Orderbook</div>
-<div class="item">Backtest Lab</div>
 <h4>STRATEGIES</h4>
 <div class="item">SVM-RSI Ensemble <span style="color:#00e676">● ACTIVE</span></div>
-<div class="item">LSTM Trend v2</div>
 <h4>GATES STATUS</h4>
 <div id="gates-list"></div>
 </div>
@@ -72,16 +72,18 @@ body{background:#0a0e14;color:#e6e6e6;font-family:'Inter',sans-serif}
 <div><span class="badge badge-gold">XAUUSD — GOLD / US DOLLAR</span> <span class="badge" style="background:#1a2332;color:#9aa8bd">COMEX • SPOT</span> <span class="badge badge-green" id="regime-badge">TRENDING</span></div>
 <div class="price-box"><div class="price mono" id="price">$4,124.70</div><div class="change mono" id="chg">↗ +12.40 (+0.30%)</div></div>
 <div class="mono" style="font-size:12px;color:#6b7a90;display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
-<span>Open <b>4112.30</b></span><span>High <b>4128.50</b></span><span>Low <b>4108.20</b></span><span>Vol <b>1.24M</b></span><span>DXY <b id="dxy">101.2</b></span><span>RSI <b id="rsi">58.32</b></span>
+<span>Open <b>4112.30</b></span><span>High <b>4128.50</b></span><span>Low <b>4108.20</b></span><span>DXY <b id="dxy">101.2</b></span><span>RSI <b id="rsi">58.32</b></span>
 </div>
 <div class="chart" id="chart"></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-<div class="card mono"><h5>AI ANALYST (v7)</h5><div id="ai-analyst" style="font-size:12px;line-height:1.5;color:#e6e6e6">Loading analysis...</div></div>
-<div class="card mono"><h5>INVALIDATION & RISK</h5><div id="invalidation" style="font-size:11px;color:#9aa8bd"></div><div id="risk" style="margin-top:8px"></div></div>
+<div class="card mono"><h5>AI ANALYST (v7.1)</h5><div id="ai-analyst" style="font-size:12px;line-height:1.5;color:#e6e6e6">Loading...</div></div>
+<div class="card mono"><h5>INVALIDATION & RISK</h5><div id="invalidation" style="font-size:11px;color:#9aa8bd"></div><div id="risk" style="margin-top:8px"></div>
+<a id="mt5Btn" class="btn-mt5 mono" href="#">OPEN XAUUSD IN MT5 →</a>
+</div>
 </div>
 </div>
 <div class="right mono">
-<div class="card"><h5>SIGNAL & INSIGHTS (v7)</h5>
+<div class="card"><h5>SIGNAL & INSIGHTS (v7.1)</h5>
 <div id="signal-box" style="background:#0a3d2a;padding:12px;border-radius:6px"><div class="big-signal" id="signal">WAIT</div><div style="font-size:12px" id="confidence">Confidence 50%</div></div>
 <div class="metric"><span>Model:</span><b>SVM-RSI Ensemble + v7 Gates</b></div>
 <div class="metric"><span>Evidence:</span><b id="evidence">0 Supporting</b></div>
@@ -98,35 +100,56 @@ body{background:#0a0e14;color:#e6e6e6;font-family:'Inter',sans-serif}
 <div style="border-top:1px solid #1f2a38;margin:8px 0"></div>
 <div class="metric"><span>Pivot</span><b>• 4120.45</b></div>
 <div class="metric"><span style="color:#00e676">Support 1</span><b style="color:#00e676">• 4115.00</b></div>
-<div class="metric"><span>Support 2</span><b>• 4105.00</b></div>
-</div>
-<div class="card"><h5>BACKTEST METRICS (60D)</h5>
-<div style="display:flex;gap:6px;flex-wrap:wrap"><span class="badge badge-green">Win Rate 62%</span><span class="badge badge-gold">Sharpe 1.87</span><span class="badge badge-red">Max DD -3.1%</span></div>
 </div>
 </div>
 </div>
-<div class="footer mono"><span id="system-status">SYSTEM: Models loaded • 8 Gates active • Data: Live</span><span>ORDERBOOK: Bid <span id="bid">4124.68</span> | Ask <span id="ask">4124.72</span> | Spread 0.04</span></div>
+<div class="footer mono"><span id="system-status">SYSTEM: Models loaded • 8 Gates active • Mobile Sound Ready</span><span>ORDERBOOK: Bid <span id="bid">4124.68</span> | Ask <span id="ask">4124.72</span> | Spread 0.04</span></div>
+
 <script>
-let audioCtx=null;
-function playAlert(){
+let audioCtx=null; let soundEnabled=false; let lastAlertTime=0;
+function enableSound(){
+ soundEnabled=true;
+ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+ if(Notification && Notification.permission!=="granted") Notification.requestPermission();
+ document.getElementById('enableBtn').style.display='none';
+ playAlert(true);
+ document.getElementById('system-status').innerText='SYSTEM: Sound ENABLED • Vibration ON • MT5 Ready';
+}
+function playAlert(isTest=false){
+ if(!soundEnabled && !isTest) return;
  try{
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-  const seq=[880,1200,880]; seq.forEach((f,i)=>{
+  const tones=isTest?[880,1200]:[880,1200,880,1500];
+  tones.forEach((f,i)=>{
    const o=audioCtx.createOscillator(); const g=audioCtx.createGain();
    o.connect(g); g.connect(audioCtx.destination);
-   o.frequency.value=f; g.gain.setValueAtTime(0.7,audioCtx.currentTime+i*0.25);
-   o.start(audioCtx.currentTime+i*0.25); o.stop(audioCtx.currentTime+i*0.25+0.3);
+   o.frequency.value=f; o.type='sine';
+   g.gain.setValueAtTime(0.9,audioCtx.currentTime+i*0.28);
+   g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+i*0.28+0.35);
+   o.start(audioCtx.currentTime+i*0.28); o.stop(audioCtx.currentTime+i*0.28+0.35);
   });
+  if(navigator.vibrate) navigator.vibrate([500,200,500,200,800]);
  }catch(e){}
 }
-function showNotif(text){
+function showNotif(text, data){
  const n=document.getElementById('notif'); document.getElementById('notif-text').innerText=text;
- n.style.display='block'; playAlert(); setTimeout(()=>n.style.display='none',8000);
+ n.style.display='block'; playAlert(); 
+ setTimeout(()=>n.style.display='none',10000);
+ if(soundEnabled && Notification.permission==="granted"){
+   new Notification('TILISI GOLD '+data.signal, {body:text, requireInteraction:true, vibrate:[500,200,800]});
+ }
+ const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+ const mt5Btn=document.getElementById('mt5Btn');
+ mt5Btn.href=isIOS?data.mobile_alert.mt5.ios:data.mobile_alert.mt5.android;
+ mt5Btn.style.display='block';
+ mt5Btn.onclick=function(e){
+   setTimeout(()=>{ window.location.href=data.mobile_alert.mt5.fallback; },800);
+ };
 }
 function updateUTC(){document.getElementById('utc').innerText=new Date().toUTCString().slice(17,25)}
 setInterval(updateUTC,1000); updateUTC();
 function buildChart(){
- let c=document.getElementById('chart'); c.innerHTML='<div class=\"level r1 mono\">R1 4128.00 — Resistance</div><div class=\"level s1 mono\">S1 4115.00 — Support</div>';
+ let c=document.getElementById('chart'); c.innerHTML='<div class="level r1 mono">R1 4128.00 — Resistance</div><div class="level s1 mono">S1 4115.00 — Support</div>';
  for(let i=0;i<90;i++){let el=document.createElement('div'); el.className='candle'; el.style.left=(i*1.1+3)+'%'; let h=18+Math.random()*90; el.style.height=h+'px'; el.style.bottom=50+Math.random()*90+'px'; el.style.opacity=0.5+Math.random()*0.5; c.appendChild(el);}
 }
 buildChart();
@@ -147,15 +170,16 @@ async function load(){
   document.getElementById('ev-neu').innerText=j.evidence.neutral.join(', ')||'-';
   document.getElementById('ai-analyst').innerText=j.ai_analyst;
   document.getElementById('invalidation').innerText=j.invalidation;
-  document.getElementById('risk').innerHTML='<span class=\"badge '+(j.risk=='LOW'?'badge-green':j.risk=='HIGH'?'badge-red':'badge-gold')+'\">Risk: '+j.risk+'</span>';
+  document.getElementById('risk').innerHTML='<span class="badge '+(j.risk=='LOW'?'badge-green':j.risk=='HIGH'?'badge-red':'badge-gold')+'">Risk: '+j.risk+'</span>';
   let gl=document.getElementById('gates-list'); gl.innerHTML='';
   Object.entries(j.gates).forEach(([k,v])=>{
     let d=document.createElement('div'); d.className='gate gate-'+(v.status=='PASS'?'pass':v.status=='FAIL'?'fail':'wait');
     d.innerHTML='<span>'+k+'</span><span>'+v.status+'</span>'; gl.appendChild(d);
   });
-  document.getElementById('system-status').innerText='SYSTEM: '+j.passed+'/8 Gates PASS • '+j.regime+' • '+j.signal;
-  if(j.should_notify){
-    showNotif(j.signal+' @ $'+j.gold+' | '+j.passed+'/8 Gates | Conf '+j.confidence+'%');
+  document.getElementById('system-status').innerText=soundEnabled?('SYSTEM: Sound ON • '+j.passed+'/8 PASS • '+j.regime):('SYSTEM: '+j.passed+'/8 Gates • '+j.regime);
+  if(j.should_notify && Date.now()-lastAlertTime>300000){ // 5 min cooldown
+    lastAlertTime=Date.now();
+    showNotif(j.signal+' @ $'+j.gold+' | '+j.passed+'/8 Gates | Conf '+j.confidence+'% | '+j.regime, j);
   }
  }catch(e){console.log(e)}
 }
@@ -164,22 +188,14 @@ load(); setInterval(load,30000);
 </script></body></html>
 """
 
-def get_gold_price():
-    try:
-        import requests
-        r=requests.get('https://api.gold-api.com/price/XAU',timeout=6).json()
-        return float(r['price'])
-    except:
-        return 4124.70
-
 @app.route('/')
-def home():
-    return render_template_string(HTML)
+def home(): return render_template_string(HTML)
 
 @app.route('/api/data')
-def api_data():
-    result = v7_check_gates()
-    return jsonify(result)
+def api_data(): return jsonify(v7_check_gates())
+
+@app.route('/health')
+def health(): return jsonify({"status":"LIVE","engine":"v7.1","time":datetime.utcnow().isoformat()})
 
 if __name__ == '__main__':
     port=int(os.environ.get('PORT',5000))
