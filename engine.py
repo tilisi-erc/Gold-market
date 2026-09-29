@@ -1,13 +1,9 @@
-# TILISI GOLD BI v7.1 - QUANT ENGINE + MOBILE SOUND + MT5
+# TILISI GOLD BI v7.1 - QUANT ENGINE
 # Philosophy: "do not rebuild what is working; tighten what is loose"
 import requests, json, time
 from datetime import datetime
 import random
-from flask import Flask, jsonify, render_template_string
 
-app = Flask(__name__)
-
-# --- YOUR ORIGINAL ENGINE - UNTOUCHED ---
 def get_gold_price():
     try:
         r = requests.get('https://api.gold-api.com/price/XAU', timeout=8).json()
@@ -134,20 +130,12 @@ def v7_check_gates(gold_price=None, dxy_val=None):
         "should_notify": should_notify,
         "mobile_alert": {
             "play_sound": should_notify,
-            "vibration_pattern": [500,200,500,200,800],
-            "mt5_links": {
+            "vibration": [500,200,500,200,800],
+            "mt5": {
                 "android": "intent://#Intent;package=net.metaquotes.metatrader5;S.symbol=XAUUSD;end",
                 "ios": "metatrader5://symbol/XAUUSD",
                 "fallback": "https://trade.mql5.com/trade?symbol=XAUUSD"
             }
         },
         "levels": {"resistance":[4145,4135,4128],"pivot":4120.45,"support":[4115,4105,4092]}
-    }
-
-# --- NEW: FLASK ROUTES ---
-@app.route('/health')
-def health(): return jsonify({"status":"LIVE","engine":"v7.1","time":datetime.utcnow().isoformat()})
-
-@app.route('/api/v7/status')
-def api_status():
-   
+}
